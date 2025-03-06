@@ -31,6 +31,9 @@ Features
 - Pattern Ignoring: Skips lines matching a configurable ignore pattern (default: (ignore these patterns)).
 - Overwrite Protection: Warns users before overwriting existing output files with a confirmation dialog.
 - Stop Functionality: Allows interrupting the search process mid-execution.
+- Customizable Ignore Settings: Input file patterns (e.g., index.txt, *.log) and folder patterns (e.g., temp, logs) to exclude from search via GUI.
+- Adjustable Excerpt Limits: Customize the number of sentences in keyword excerpts and the word limit for middle excerpts.
+- Enhanced GUI Layout: Organized into sections using frames and grid layout for a cleaner, more user-friendly interface.
 
 ## Requirements
 
