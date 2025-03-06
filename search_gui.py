@@ -143,6 +143,9 @@ class SearchApp:
         self.stats_text = scrolledtext.ScrolledText(main_frame, height=20, width=80)
         self.stats_text.grid(row=5, column=0, padx=5, pady=5)
 
+        # Bind toggle for proximity input
+        self.search_mode.trace("w", self.toggle_proximity_input)
+
     def toggle_proximity_input(self, *args):
         if self.search_mode.get() == "Proximity Mode":
             self.proximity_entry.config(state=tk.NORMAL)
@@ -188,7 +191,7 @@ class SearchApp:
         start_time = time.time()
 
         terms = [t.strip() for t in self.search_terms.get().split(',')] if self.search_terms.get() else DEFAULT_TERMS
-        term_patterns = [re.compile(rf"(?:^|\s){term}(?=\s|$)", re.IGNORECASE) for term in terms]
+        self.term_patterns = [re.compile(rf"(?:^|\s){term}(?=\s|$)", re.IGNORECASE) for term in terms]
         total_matches_by_term = {term: 0 for term in terms} if self.search_mode.get() == "Individual Mode" else {'proximity': 0}
 
         search_dir = self.search_dir.get()
@@ -197,19 +200,19 @@ class SearchApp:
         is_rtf = output_file_type == ".rtf"
         mode = self.search_mode.get()
 
-        # Get configurable limits (convert to int, use defaults if invalid)
+        # Get configurable limits and store as instance variables
         try:
-            excerpt_sentences = int(self.excerpt_sentences.get())
-            middle_word_limit = int(self.middle_word_limit.get())
-            proximity_window = int(self.proximity_window.get()) if mode == "Proximity Mode" else PROXIMITY_WINDOW
+            self.excerpt_sentences_val = int(self.excerpt_sentences.get())
+            self.middle_word_limit_val = int(self.middle_word_limit.get())
+            self.proximity_window_val = int(self.proximity_window.get()) if mode == "Proximity Mode" else PROXIMITY_WINDOW
         except ValueError:
-            excerpt_sentences = EXCERPT_SENTENCES
-            middle_word_limit = MIDDLE_WORD_LIMIT
-            proximity_window = PROXIMITY_WINDOW
+            self.excerpt_sentences_val = EXCERPT_SENTENCES
+            self.middle_word_limit_val = MIDDLE_WORD_LIMIT
+            self.proximity_window_val = PROXIMITY_WINDOW
 
         # Update ignore patterns from GUI
-        ignore_files = [f.strip() for f in self.ignore_files.get().split(',')] if self.ignore_files.get() else IGNORE_FILES
-        ignore_folders = [f.strip() for f in self.ignore_folders.get().split(',')] if self.ignore_folders.get() else IGNORE_FOLDERS
+        self.ignore_files_list = [f.strip() for f in self.ignore_files.get().split(',')] if self.ignore_files.get() else IGNORE_FILES
+        self.ignore_folders_list = [f.strip() for f in self.ignore_folders.get().split(',')] if self.ignore_folders.get() else IGNORE_FOLDERS
 
         if not os.path.isdir(search_dir):
             self.stats_text.insert(tk.END, f"Error: {search_dir} does not exist\n")
@@ -248,152 +251,157 @@ class SearchApp:
                 self.stop_search()
                 return
 
-        txt_files = [f for f in Path(search_dir).rglob("*.[tT][xX][tT]")
-                     if not (any(fnmatch.fnmatch(f.name, ignore) for ignore in ignore_files) or
-                             any(fnmatch.fnmatch(str(f.parent.name), ignore) for ignore in ignore_folders))]
-        total_files = len(txt_files)
+        self.txt_files = [f for f in Path(search_dir).rglob("*.[tT][xX][tT]")
+                         if not (any(fnmatch.fnmatch(f.name, ignore) for ignore in self.ignore_files_list) or
+                                 any(fnmatch.fnmatch(str(f.parent.name), ignore) for ignore in self.ignore_folders_list))]
+        total_files = len(self.txt_files)
         self.update_stats(terms)
 
-        def search_loop():
-            global files_processed
-            ignore_pattern = re.compile(IGNORE_STRING)
-            for file in txt_files:
+        # Start the search loop
+        self.root.after(10, self.search_loop)
+
+    def search_loop(self):
+        global files_processed
+        ignore_pattern = re.compile(IGNORE_STRING)
+        mode = self.search_mode.get()
+        is_rtf = self.output_file_type.get() == ".rtf"
+        terms = [t.strip() for t in self.search_terms.get().split(',')] if self.search_terms.get() else DEFAULT_TERMS
+
+        for file in self.txt_files:
+            if not running:
+                break
+            file_start = time.time()
+            with open(file, "r", encoding="utf-8", errors="ignore") as f:
+                raw_text = f.read().replace(r'\c', r'\\c')
+                lines = raw_text.splitlines()
+                sentences_all = re.split(r'\.\s*', raw_text)
+                sentences_all = [s.strip() + "." for s in sentences_all if s.strip()]
+
+            if mode == "Individual Mode":
+                for i, line in enumerate(lines, 1):
+                    if ignore_pattern.search(line):
+                        continue
+                    for term_idx, pattern in enumerate(self.term_patterns):
+                        term = terms[term_idx]
+                        match = pattern.search(line)
+                        if match:
+                            total_matches_by_term[term] += 1
+                            start = max(0, i - self.proximity_window_val)
+                            end = min(len(lines), i + self.proximity_window_val)
+                            excerpt_lines = [l for l in lines[start:end] if not ignore_pattern.search(l)]
+                            excerpt_full = " ".join(excerpt_lines)
+                            sentences = re.split(r'\.\s*', excerpt_full)
+                            keyword_sentence_idx = -1
+                            for idx, sentence in enumerate(sentences):
+                                if pattern.search(sentence):
+                                    keyword_sentence_idx = idx
+                                    break
+                            if keyword_sentence_idx == -1:
+                                keyword_excerpt = line.strip() + "."
+                            else:
+                                excerpt_start = max(0, keyword_sentence_idx - (self.excerpt_sentences_val // 2))
+                                excerpt_end = min(len(sentences), excerpt_start + self.excerpt_sentences_val)
+                                keyword_excerpt = " ".join(sentences[excerpt_start:excerpt_end]).strip() + "."
+                                if not pattern.search(keyword_excerpt):
+                                    keyword_excerpt = line.strip() + "."
+                            matched_term = match.group(0)
+                            if is_rtf:
+                                keyword_excerpt = keyword_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
+                                style = self.highlight_style.get()
+                                highlighted_term = HIGHLIGHT_STYLES[style].format(term=matched_term)
+                                keyword_excerpt = keyword_excerpt.replace(matched_term, highlighted_term)
+                            else:
+                                keyword_excerpt = keyword_excerpt
+
+                            mid_point = len(sentences_all) // 2
+                            mid_start = max(0, mid_point - (MIDDLE_SENTENCES // 2))
+                            mid_end = min(len(sentences_all), mid_start + MIDDLE_SENTENCES)
+                            middle_sentences = sentences_all[mid_start:mid_end]
+                            middle_excerpt = " ".join(middle_sentences)
+                            words = middle_excerpt.split()
+                            if len(words) > self.middle_word_limit_val:
+                                middle_excerpt = " ".join(words[:self.middle_word_limit_val]) + "..."
+                            if is_rtf:
+                                middle_excerpt = middle_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
+
+                            out_f = output_files[term]
+                            out_f.write(f"File: {file}\n")
+                            out_f.write(f"Match at line {i} (keyword excerpt): {keyword_excerpt}\n")
+                            out_f.write("\n")
+                            out_f.write("\n")
+                            out_f.write(f"Middle of file excerpt: {middle_excerpt}\n")
+                            out_f.write("------------------------\n" if not is_rtf else "------------------------\\par\n")
+                            if is_rtf:
+                                out_f.write("\\par\n")
+                            out_f.flush()
+            else:
+                proximity_matches = []
+                for i, sentence in enumerate(sentences_all):
+                    if ignore_pattern.search(sentence):
+                        continue
+                    if self.term_patterns[0].search(sentence):
+                        start = max(0, i - self.proximity_window_val)
+                        end = min(len(sentences_all), i + self.proximity_window_val + 1)
+                        window = " ".join(sentences_all[start:end])
+                        if all(pattern.search(window) for pattern in self.term_patterns):
+                            proximity_matches.append(i)
+
+                for match_idx in proximity_matches:
+                    total_matches_by_term['proximity'] += 1
+                    start = max(0, match_idx - (self.excerpt_sentences_val // 2))
+                    end = min(len(sentences_all), start + self.excerpt_sentences_val)
+                    excerpt_sentences_list = sentences_all[start:end]
+                    keyword_excerpt = " ".join(excerpt_sentences_list)
+
+                    if not all(pattern.search(keyword_excerpt) for pattern in self.term_patterns):
+                        continue
+
+                    if is_rtf:
+                        keyword_excerpt = keyword_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
+                        style = self.highlight_style.get()
+                        for pattern_idx, pattern in enumerate(self.term_patterns):
+                            matches = list(pattern.finditer(keyword_excerpt))
+                            for match in reversed(matches):
+                                matched_term = match.group(0)
+                                highlighted_term = HIGHLIGHT_STYLES[style].format(term=matched_term)
+                                keyword_excerpt = (keyword_excerpt[:match.start()] + 
+                                                 highlighted_term + 
+                                                 keyword_excerpt[match.end():])
+                    else:
+                        keyword_excerpt = keyword_excerpt
+
+                    mid_point = len(sentences_all) // 2
+                    mid_start = max(0, mid_point - (MIDDLE_SENTENCES // 2))
+                    mid_end = min(len(sentences_all), mid_start + MIDDLE_SENTENCES)
+                    middle_sentences = sentences_all[mid_start:mid_end]
+                    middle_excerpt = " ".join(middle_sentences)
+                    words = middle_excerpt.split()
+                    if len(words) > self.middle_word_limit_val:
+                        middle_excerpt = " ".join(words[:self.middle_word_limit_val]) + "..."
+                    if is_rtf:
+                        middle_excerpt = middle_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
+
+                    out_f = output_files['proximity']
+                    out_f.write(f"File: {file}\n")
+                    out_f.write(f"Proximity match at sentence {match_idx + 1} (keyword excerpt): {keyword_excerpt}\n")
+                    out_f.write("\n")
+                    out_f.write("\n")
+                    out_f.write(f"Middle of file excerpt: {middle_excerpt}\n")
+                    out_f.write("------------------------\n" if not is_rtf else "------------------------\\par\n")
+                    if is_rtf:
+                        out_f.write("\\par\n")
+                    out_f.flush()
+
+            files_processed += 1
+            if files_processed % UPDATE_INTERVAL == 0:
+                elapsed = time.time() - file_start
+                self.stats_text.insert(tk.END, f"Processed {file} in {elapsed:.2f} seconds\n")
+                self.update_stats(terms)
+                self.root.update()
                 if not running:
                     break
-                file_start = time.time()
-                with open(file, "r", encoding="utf-8", errors="ignore") as f:
-                    raw_text = f.read().replace(r'\c', r'\\c')
-                    lines = raw_text.splitlines()
-                    sentences_all = re.split(r'\.\s*', raw_text)
-                    sentences_all = [s.strip() + "." for s in sentences_all if s.strip()]
 
-                if mode == "Individual Mode":
-                    for i, line in enumerate(lines, 1):
-                        if ignore_pattern.search(line):
-                            continue
-                        for term_idx, pattern in enumerate(term_patterns):
-                            term = terms[term_idx]
-                            match = pattern.search(line)
-                            if match:
-                                total_matches_by_term[term] += 1
-                                start = max(0, i - PROXIMITY_WINDOW)
-                                end = min(len(lines), i + PROXIMITY_WINDOW)
-                                excerpt_lines = [l for l in lines[start:end] if not ignore_pattern.search(l)]
-                                excerpt_full = " ".join(excerpt_lines)
-                                sentences = re.split(r'\.\s*', excerpt_full)
-                                keyword_sentence_idx = -1
-                                for idx, sentence in enumerate(sentences):
-                                    if pattern.search(sentence):
-                                        keyword_sentence_idx = idx
-                                        break
-                                if keyword_sentence_idx == -1:
-                                    keyword_excerpt = line.strip() + "."
-                                else:
-                                    excerpt_start = max(0, keyword_sentence_idx - (excerpt_sentences // 2))
-                                    excerpt_end = min(len(sentences), excerpt_start + excerpt_sentences)
-                                    keyword_excerpt = " ".join(sentences[excerpt_start:excerpt_end]).strip() + "."
-                                    if not pattern.search(keyword_excerpt):
-                                        keyword_excerpt = line.strip() + "."
-                                matched_term = match.group(0)
-                                if is_rtf:
-                                    keyword_excerpt = keyword_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
-                                    style = self.highlight_style.get()
-                                    highlighted_term = HIGHLIGHT_STYLES[style].format(term=matched_term)
-                                    keyword_excerpt = keyword_excerpt.replace(matched_term, highlighted_term)
-                                else:
-                                    keyword_excerpt = keyword_excerpt
-
-                                mid_point = len(sentences_all) // 2
-                                mid_start = max(0, mid_point - (MIDDLE_SENTENCES // 2))
-                                mid_end = min(len(sentences_all), mid_start + MIDDLE_SENTENCES)
-                                middle_sentences = sentences_all[mid_start:mid_end]
-                                middle_excerpt = " ".join(middle_sentences)
-                                words = middle_excerpt.split()
-                                if len(words) > middle_word_limit:
-                                    middle_excerpt = " ".join(words[:middle_word_limit]) + "..."
-                                if is_rtf:
-                                    middle_excerpt = middle_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
-
-                                out_f = output_files[term]
-                                out_f.write(f"File: {file}\n")
-                                out_f.write(f"Match at line {i} (keyword excerpt): {keyword_excerpt}\n")
-                                out_f.write("\n")
-                                out_f.write("\n")
-                                out_f.write(f"Middle of file excerpt: {middle_excerpt}\n")
-                                out_f.write("------------------------\n" if not is_rtf else "------------------------\\par\n")
-                                if is_rtf:
-                                    out_f.write("\\par\n")
-                                out_f.flush()
-                else:
-                    proximity_matches = []
-                    for i, sentence in enumerate(sentences_all):
-                        if ignore_pattern.search(sentence):
-                            continue
-                        if term_patterns[0].search(sentence):
-                            start = max(0, i - proximity_window)
-                            end = min(len(sentences_all), i + proximity_window + 1)
-                            window = " ".join(sentences_all[start:end])
-                            if all(pattern.search(window) for pattern in term_patterns):
-                                proximity_matches.append(i)
-
-                    for match_idx in proximity_matches:
-                        total_matches_by_term['proximity'] += 1
-                        start = max(0, match_idx - (excerpt_sentences // 2))
-                        end = min(len(sentences_all), start + excerpt_sentences)
-                        excerpt_sentences = sentences_all[start:end]
-                        keyword_excerpt = " ".join(excerpt_sentences)
-
-                        if not all(pattern.search(keyword_excerpt) for pattern in term_patterns):
-                            continue
-
-                        if is_rtf:
-                            keyword_excerpt = keyword_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
-                            style = self.highlight_style.get()
-                            for pattern_idx, pattern in enumerate(term_patterns):
-                                matches = list(pattern.finditer(keyword_excerpt))
-                                for match in reversed(matches):
-                                    matched_term = match.group(0)
-                                    highlighted_term = HIGHLIGHT_STYLES[style].format(term=matched_term)
-                                    keyword_excerpt = (keyword_excerpt[:match.start()] + 
-                                                     highlighted_term + 
-                                                     keyword_excerpt[match.end():])
-                        else:
-                            keyword_excerpt = keyword_excerpt
-
-                        mid_point = len(sentences_all) // 2
-                        mid_start = max(0, mid_point - (MIDDLE_SENTENCES // 2))
-                        mid_end = min(len(sentences_all), mid_start + MIDDLE_SENTENCES)
-                        middle_sentences = sentences_all[mid_start:mid_end]
-                        middle_excerpt = " ".join(middle_sentences)
-                        words = middle_excerpt.split()
-                        if len(words) > middle_word_limit:
-                            middle_excerpt = " ".join(words[:middle_word_limit]) + "..."
-                        if is_rtf:
-                            middle_excerpt = middle_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
-
-                        out_f = output_files['proximity']
-                        out_f.write(f"File: {file}\n")
-                        out_f.write(f"Proximity match at sentence {match_idx + 1} (keyword excerpt): {keyword_excerpt}\n")
-                        out_f.write("\n")
-                        out_f.write("\n")
-                        out_f.write(f"Middle of file excerpt: {middle_excerpt}\n")
-                        out_f.write("------------------------\n" if not is_rtf else "------------------------\\par\n")
-                        if is_rtf:
-                            out_f.write("\\par\n")
-                        out_f.flush()
-
-                files_processed += 1
-                if files_processed % UPDATE_INTERVAL == 0:
-                    elapsed = time.time() - file_start
-                    self.stats_text.insert(tk.END, f"Processed {file} in {elapsed:.2f} seconds\n")
-                    self.update_stats(terms)
-                    self.root.update()
-                    if not running:
-                        break
-
-            self.finalize_search(terms)
-
-        self.root.after(10, search_loop)
+        self.finalize_search(terms)
 
     def stop_search(self):
         global running
