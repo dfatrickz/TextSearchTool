@@ -28,7 +28,7 @@ Features
   - Search speed (files per second)
   - Elapsed time and estimated time remaining
 - File and Folder Filtering: Ignores specified files (e.g., index.txt, *.log) and folders (e.g., temp, logs) to focus on relevant content.
-- Pattern Ignoring: Skips lines matching a configurable ignore pattern (default: (ignore these patterns)).
+- Pattern Ignoring: Skips lines matching a configurable ignore pattern (default: (ignore these patterns)). (Not in GUI yet)
 - Overwrite Protection: Warns users before overwriting existing output files with a confirmation dialog.
 - Stop Functionality: Allows interrupting the search process mid-execution.
 - Customizable Ignore Settings: Input file patterns (e.g., index.txt, *.log) and folder patterns (e.g., temp, logs) to exclude from search via GUI.
