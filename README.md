@@ -4,28 +4,33 @@ A Python-based GUI application designed to search for specific terms within text
 
 ## Features
 
-- **Graphical User Interface (GUI)**: Built with `tkinter`, providing an intuitive interface for ease of use.
-- **Customizable Search Terms**: Enter multiple search terms (comma-separated) to find matches across text files.
-- **Directory Selection**: Browse and select both the search directory (where text files are located) and the output directory (where results are saved).
-- **Multiple Output Formats**: Choose from common text file types for output:
-  - `.rtf` (Rich Text Format, with highlighting support)
-  - `.txt` (Plain text)
-  - `.md` (Markdown)
-  - `.docx` (Plain text with `.docx` extension)
-  - `.csv` (Plain text with `.csv` extension)
-- **Highlighting for RTF**: Customize how matched terms appear in `.rtf` files with options like Bold, Red, Blue, Bold Red, or Bold Blue.
-- **Excerpt Generation**:
-  - **Keyword Excerpt**: Displays the line containing the match plus a configurable number of surrounding lines (default: 5 sentences).
-  - **Middle Excerpt**: Includes a snippet from the middle of the file (default: 10 sentences, up to 150 words) for context.
-- **Progress Tracking**: Real-time stats in the GUI, including:
+Features
+
+- Graphical User Interface (GUI): Built with tkinter, providing an intuitive interface for ease of use.
+- Customizable Search Terms: Enter multiple search terms (comma-separated) to find matches across text files.
+- Search Mode Selection: Choose between:
+  - Individual Mode: Search for each term independently, outputting matches to separate files per term.
+  - Proximity Mode: Search for all terms within a configurable proximity window (e.g., 10 sentences), outputting matches to a single file.
+- Directory Selection: Browse and select both the search directory (where text files are located) and the output directory (where results are saved).
+- Multiple Output Formats: Choose from common text file types for output:
+  - .rtf (Rich Text Format, with highlighting support)
+  - .txt (Plain text)
+  - .md (Markdown)
+  - .docx (Plain text with .docx extension)
+  - .csv (Plain text with .csv extension)
+- Highlighting for RTF: Customize how matched terms appear in .rtf files with options like Bold, Red, Blue, Bold Red, or Bold Blue.
+- Excerpt Generation:
+  - Keyword Excerpt: Displays the line containing the match plus a configurable number of surrounding lines (default: 5 sentences).
+  - Middle Excerpt: Includes a snippet from the middle of the file (default: 10 sentences, up to 150 words) for context.
+- Progress Tracking: Real-time stats in the GUI, including:
   - Files processed vs. total files
-  - Matches per term
+  - Matches per term (Individual Mode) or total proximity matches (Proximity Mode)
   - Search speed (files per second)
   - Elapsed time and estimated time remaining
-- **File and Folder Filtering**: Ignores specified files (e.g., `index.txt`, `*.log`) and folders (e.g., `temp`, `logs`) to focus on relevant content.
-- **Pattern Ignoring**: Skips lines matching a configurable ignore pattern (default: `(ignore these patterns)`).
-- **Overwrite Protection**: Warns users before overwriting existing output files with a confirmation dialog.
-- **Stop Functionality**: Allows interrupting the search process mid-execution.
+- File and Folder Filtering: Ignores specified files (e.g., index.txt, *.log) and folders (e.g., temp, logs) to focus on relevant content.
+- Pattern Ignoring: Skips lines matching a configurable ignore pattern (default: (ignore these patterns)).
+- Overwrite Protection: Warns users before overwriting existing output files with a confirmation dialog.
+- Stop Functionality: Allows interrupting the search process mid-execution.
 
 ## Requirements
 
