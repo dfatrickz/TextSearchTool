@@ -47,7 +47,7 @@ class SearchApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Text Search Tool")
-        self.root.geometry("800x600")
+        self.root.geometry("800x600")  # Initial size, will expand dynamically
         self.search_terms = tk.StringVar(value=",".join(DEFAULT_TERMS))
         self.search_dir = tk.StringVar(value=DIR)
         self.output_dir = tk.StringVar(value=OUTPUT_DIR)
@@ -62,9 +62,17 @@ class SearchApp:
         self.create_widgets()
 
     def create_widgets(self):
+        # Configure root to expand
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
+
         # Main frame for better layout
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        # Configure main_frame to expand
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(5, weight=1)  # Row 5 (stats_text) will expand
 
         # Input Section
         input_frame = ttk.LabelFrame(main_frame, text="Search Inputs", padding="5")
@@ -140,8 +148,14 @@ class SearchApp:
         self.stop_btn.pack(side=tk.LEFT, padx=5)
 
         # Stats Section
-        self.stats_text = scrolledtext.ScrolledText(main_frame, height=20, width=80)
-        self.stats_text.grid(row=5, column=0, padx=5, pady=5)
+        stats_frame = ttk.LabelFrame(main_frame, text="Search Stats", padding="5")
+        stats_frame.grid(row=5, column=0, padx=5, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
+        stats_frame.columnconfigure(0, weight=1)
+        stats_frame.rowconfigure(0, weight=1)
+
+        # Remove fixed height and width, let it expand dynamically
+        self.stats_text = scrolledtext.ScrolledText(stats_frame)
+        self.stats_text.grid(row=0, column=0, padx=5, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # Bind toggle for proximity input
         self.search_mode.trace("w", self.toggle_proximity_input)
@@ -259,7 +273,6 @@ class SearchApp:
 
         # Start the search loop
         self.root.after(10, self.search_loop)
-
     def search_loop(self):
         global files_processed
         ignore_pattern = re.compile(IGNORE_STRING)
@@ -430,4 +443,4 @@ class SearchApp:
 if __name__ == "__main__":
     root = tk.Tk()
     app = SearchApp(root)
-    root.mainloop()
+    root.mainloop()        
