@@ -47,7 +47,7 @@ class SearchApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Text Search Tool")
-        self.root.geometry("800x600")  # Initial size, will expand dynamically
+        # Removed self.root.geometry("800x600") to allow dynamic resizing
         self.search_terms = tk.StringVar(value=",".join(DEFAULT_TERMS))
         self.search_dir = tk.StringVar(value=DIR)
         self.output_dir = tk.StringVar(value=OUTPUT_DIR)
@@ -153,12 +153,15 @@ class SearchApp:
         stats_frame.columnconfigure(0, weight=1)
         stats_frame.rowconfigure(0, weight=1)
 
-        # Remove fixed height and width, let it expand dynamically
-        self.stats_text = scrolledtext.ScrolledText(stats_frame)
+        # Start with minimal height, will adjust dynamically
+        self.stats_text = scrolledtext.ScrolledText(stats_frame, height=1)
         self.stats_text.grid(row=0, column=0, padx=5, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # Bind toggle for proximity input
         self.search_mode.trace("w", self.toggle_proximity_input)
+
+        # Force the window to update its size after all widgets are added
+        self.root.update_idletasks()
 
     def toggle_proximity_input(self, *args):
         if self.search_mode.get() == "Proximity Mode":
@@ -192,7 +195,18 @@ class SearchApp:
         files_left = total_files - files_processed
         time_left = files_left / speed if speed > 0 else float('inf')
         self.stats_text.insert(tk.END, f"Est. Time Left (sec): {time_left:.2f}\n" if time_left != float('inf') else "N/A\n")
+
+        # Dynamically adjust the height based on the number of lines
+        content = self.stats_text.get(1.0, tk.END).strip()
+        line_count = len(content.splitlines())
+        # Set a reasonable maximum height to avoid excessive growth
+        max_height = 30
+        new_height = min(line_count + 1, max_height)  # Add 1 for padding
+        self.stats_text.configure(height=new_height)
+
+        # Force the window to resize based on content
         self.root.update_idletasks()
+        self.root.update()
 
     def start_search(self):
         global running, start_time, files_processed, total_matches_by_term, total_files, output_files
@@ -264,7 +278,6 @@ class SearchApp:
             if not messagebox.askyesno("Overwrite Warning", warning_msg):
                 self.stop_search()
                 return
-
         self.txt_files = [f for f in Path(search_dir).rglob("*.[tT][xX][tT]")
                          if not (any(fnmatch.fnmatch(f.name, ignore) for ignore in self.ignore_files_list) or
                                  any(fnmatch.fnmatch(str(f.parent.name), ignore) for ignore in self.ignore_folders_list))]
@@ -273,6 +286,7 @@ class SearchApp:
 
         # Start the search loop
         self.root.after(10, self.search_loop)
+
     def search_loop(self):
         global files_processed
         ignore_pattern = re.compile(IGNORE_STRING)
@@ -443,4 +457,4 @@ class SearchApp:
 if __name__ == "__main__":
     root = tk.Tk()
     app = SearchApp(root)
-    root.mainloop()        
+    root.mainloop()
