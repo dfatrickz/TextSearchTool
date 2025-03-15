@@ -7,11 +7,11 @@ A Python-based GUI application designed to search for specific terms within text
 - Average file size: 35.14 KB
 - Average character count: 35593.92 characters
 
-Searching For: Happy
-Files Processed: 66781/66781
-Matches for Happy: 64006
-Speed (files/sec): 1259.18
-Elapsed Time (sec): 53.04
+- Searching For: Happy
+- Files Processed: 66781/66781
+- Matches for Happy: 64006
+- Speed (files/sec): 1259.18
+- Elapsed Time (sec): 53.04
 
 ## Features
 
