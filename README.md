@@ -82,11 +82,11 @@ Installation
    cd TextSearchTool
 
 2. Run the Tool:
-   python search_gui.py
+   python3 search_gui.py
 
 Usage
 
-1. Launch the tool with python search_gui.py.
+1. Launch the tool with python3 search_gui.py.
 2. Enter search terms (e.g., apple, banana) in the "Search Terms" field.
 3. Select a search directory containing .txt files using the "Browse" button.
 4. Choose an output directory for results.
