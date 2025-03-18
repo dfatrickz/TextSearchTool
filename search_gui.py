@@ -25,11 +25,11 @@ RTF_FOOTER = r"}"
 
 # Highlight styles mapping to RTF tags (only used for .rtf)
 HIGHLIGHT_STYLES = {
-    "Bold": r"\b {term}\b0",
-    "Red": r"\cf1 {term}\cf0",
-    "Blue": r"\cf2 {term}\cf0",
-    "Bold Red": r"\b \cf1 {term}\cf0\b0",
-    "Bold Blue": r"\b \cf2 {term}\cf0\b0"
+    "Bold": r"\b {term}\b0 ",
+    "Red": r"\cf1 {term}\cf0 ",
+    "Blue": r"\cf2 {term}\cf0 ",
+    "Bold Red": r"\b \cf1 {term}\cf0\b0 ",
+    "Bold Blue": r"\b \cf2 {term}\cf0\b0 "
 }
 
 # Search modes
@@ -43,11 +43,35 @@ total_matches_by_term = {}
 total_files = 0
 running = False
 
+class Tooltip:
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tip_window = None
+        self.widget.bind("<Enter>", self.show_tip)
+        self.widget.bind("<Leave>", self.hide_tip)
+
+    def show_tip(self, event):
+        if self.tip_window or not self.text:
+            return
+        x = self.widget.winfo_rootx() + 20
+        y = self.widget.winfo_rooty() + 20
+        self.tip_window = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f"+{x}+{y}")
+        label = tk.Label(tw, text=self.text, justify=tk.LEFT,
+                         background="#ffffe0", relief=tk.SOLID, borderwidth=1)
+        label.pack()
+
+    def hide_tip(self, event):
+        if self.tip_window:
+            self.tip_window.destroy()
+            self.tip_window = None
+
 class SearchApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Text Search Tool")
-        # Removed self.root.geometry("800x600") to allow dynamic resizing
         self.search_terms = tk.StringVar(value=",".join(DEFAULT_TERMS))
         self.search_dir = tk.StringVar(value=DIR)
         self.output_dir = tk.StringVar(value=OUTPUT_DIR)
@@ -59,85 +83,88 @@ class SearchApp:
         self.middle_word_limit = tk.StringVar(value=str(MIDDLE_WORD_LIMIT))
         self.ignore_files = tk.StringVar(value=",".join(IGNORE_FILES))
         self.ignore_folders = tk.StringVar(value=",".join(IGNORE_FOLDERS))
+        self.case_sensitive = tk.BooleanVar(value=False)  # Default to case-insensitive
+        self.show_middle_excerpt = tk.BooleanVar(value=True)  # Default to showing middle excerpt
         self.create_widgets()
 
     def create_widgets(self):
-        # Configure root to expand
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
 
-        # Main frame for better layout
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-
-        # Configure main_frame to expand
         main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(5, weight=1)  # Row 5 (stats_text) will expand
+        main_frame.rowconfigure(5, weight=1)
 
         # Input Section
         input_frame = ttk.LabelFrame(main_frame, text="Search Inputs", padding="5")
         input_frame.grid(row=0, column=0, padx=5, pady=5, sticky=(tk.W, tk.E))
-
         tk.Label(input_frame, text="Search Terms (comma-separated):").grid(row=0, column=0, pady=2, sticky=tk.W)
         tk.Entry(input_frame, textvariable=self.search_terms, width=50).grid(row=0, column=1, pady=2)
-
         tk.Label(input_frame, text="Search Directory:").grid(row=1, column=0, pady=2, sticky=tk.W)
         dir_frame = ttk.Frame(input_frame)
         dir_frame.grid(row=1, column=1, pady=2, sticky=(tk.W, tk.E))
         tk.Entry(dir_frame, textvariable=self.search_dir, width=40).pack(side=tk.LEFT)
         tk.Button(dir_frame, text="Browse", command=self.browse_search_dir).pack(side=tk.LEFT, padx=5)
-
         tk.Label(input_frame, text="Output Directory:").grid(row=2, column=0, pady=2, sticky=tk.W)
         out_frame = ttk.Frame(input_frame)
         out_frame.grid(row=2, column=1, pady=2, sticky=(tk.W, tk.E))
         tk.Entry(out_frame, textvariable=self.output_dir, width=40).pack(side=tk.LEFT)
         tk.Button(out_frame, text="Browse", command=self.browse_output_dir).pack(side=tk.LEFT, padx=5)
+        help_input = tk.Label(input_frame, text="?", fg="blue", cursor="question_arrow")
+        help_input.grid(row=0, column=2, padx=5, sticky=tk.W)
+        Tooltip(help_input, "Search Terms: Words to find (e.g., apple, pear).\nSearch Directory: Where to look for files.\nOutput Directory: Where results are saved.")
 
         # Mode and Customization Section
         mode_frame = ttk.LabelFrame(main_frame, text="Search Settings", padding="5")
         mode_frame.grid(row=1, column=0, padx=5, pady=5, sticky=(tk.W, tk.E))
-
         tk.Label(mode_frame, text="Search Mode:").grid(row=0, column=0, pady=2, sticky=tk.W)
         mode_combo = ttk.Combobox(mode_frame, textvariable=self.search_mode, values=SEARCH_MODES, state="readonly")
         mode_combo.grid(row=0, column=1, pady=2, sticky=tk.W)
         mode_combo.set(SEARCH_MODES[0])
-
-        tk.Label(mode_frame, text="Proximity Window (sentences, for Proximity Mode):").grid(row=1, column=0, pady=2, sticky=tk.W)
+        tk.Label(mode_frame, text="Proximity Window:").grid(row=0, column=2, pady=2, sticky=tk.W)
         proximity_frame = ttk.Frame(mode_frame)
-        proximity_frame.grid(row=1, column=1, pady=2, sticky=(tk.W, tk.E))
+        proximity_frame.grid(row=0, column=3, pady=2, sticky=(tk.W, tk.E))
         self.proximity_entry = tk.Entry(proximity_frame, textvariable=self.proximity_window, width=10)
         self.proximity_entry.pack(side=tk.LEFT)
         self.proximity_entry.config(state=tk.DISABLED)
-
-        tk.Label(mode_frame, text="Excerpt Sentences Limit:").grid(row=2, column=0, pady=2, sticky=tk.W)
-        ttk.Entry(mode_frame, textvariable=self.excerpt_sentences, width=10).grid(row=2, column=1, pady=2, sticky=tk.W)
-
-        tk.Label(mode_frame, text="Middle Word Limit:").grid(row=3, column=0, pady=2, sticky=tk.W)
-        ttk.Entry(mode_frame, textvariable=self.middle_word_limit, width=10).grid(row=3, column=1, pady=2, sticky=tk.W)
+        tk.Label(mode_frame, text="Case Sensitive:").grid(row=0, column=4, pady=2, sticky=tk.W)
+        tk.Checkbutton(mode_frame, variable=self.case_sensitive).grid(row=0, column=5, pady=2, sticky=tk.W)
+        tk.Label(mode_frame, text="Excerpt Sentences Limit:").grid(row=1, column=0, pady=2, sticky=tk.W)
+        ttk.Entry(mode_frame, textvariable=self.excerpt_sentences, width=10).grid(row=1, column=1, pady=2, sticky=tk.W)
+        tk.Label(mode_frame, text="Middle Word Limit:").grid(row=1, column=2, pady=2, sticky=tk.W)
+        ttk.Entry(mode_frame, textvariable=self.middle_word_limit, width=10).grid(row=1, column=3, pady=2, sticky=tk.W)
+        help_mode = tk.Label(mode_frame, text="?", fg="blue", cursor="question_arrow")
+        help_mode.grid(row=0, column=6, padx=5, sticky=tk.W)
+        Tooltip(help_mode, "Search Mode: Individual (find each term) or Proximity (terms near each other).\nProximity Window: Sentences around a match to check (default 5).\nCase Sensitive: Match exact case if checked.\nExcerpt Sentences: How many sentences in keyword excerpt.\nMiddle Word Limit: Max words in middle excerpt.")
 
         # Ignore Settings Section
         ignore_frame = ttk.LabelFrame(main_frame, text="Ignore Settings", padding="5")
         ignore_frame.grid(row=2, column=0, padx=5, pady=5, sticky=(tk.W, tk.E))
-
         tk.Label(ignore_frame, text="Ignore Files (comma-separated, e.g., index.txt, *.log):").grid(row=0, column=0, pady=2, sticky=tk.W)
         tk.Entry(ignore_frame, textvariable=self.ignore_files, width=50).grid(row=0, column=1, pady=2)
-
         tk.Label(ignore_frame, text="Ignore Folders (comma-separated, e.g., temp, logs):").grid(row=1, column=0, pady=2, sticky=tk.W)
         tk.Entry(ignore_frame, textvariable=self.ignore_folders, width=50).grid(row=1, column=1, pady=2)
+        help_ignore = tk.Label(ignore_frame, text="?", fg="blue", cursor="question_arrow")
+        help_ignore.grid(row=0, column=2, padx=5, sticky=tk.W)
+        Tooltip(help_ignore, "Ignore Files: File names/patterns to skip (e.g., *.log).\nIgnore Folders: Folder names to exclude (e.g., temp).")
 
         # Output Settings Section
         output_frame = ttk.LabelFrame(main_frame, text="Output Settings", padding="5")
         output_frame.grid(row=3, column=0, padx=5, pady=5, sticky=(tk.W, tk.E))
-
         tk.Label(output_frame, text="Highlight Style (for RTF only):").grid(row=0, column=0, pady=2, sticky=tk.W)
         style_combo = ttk.Combobox(output_frame, textvariable=self.highlight_style, values=list(HIGHLIGHT_STYLES.keys()), state="readonly")
         style_combo.grid(row=0, column=1, pady=2, sticky=tk.W)
         style_combo.set("Bold")
-
         tk.Label(output_frame, text="Output File Type:").grid(row=1, column=0, pady=2, sticky=tk.W)
         filetype_combo = ttk.Combobox(output_frame, textvariable=self.output_file_type, values=OUTPUT_FILE_TYPES, state="readonly")
         filetype_combo.grid(row=1, column=1, pady=2, sticky=tk.W)
         filetype_combo.set(DEFAULT_OUTPUT_FILE_TYPE)
+        tk.Label(output_frame, text="Show Middle Excerpt:").grid(row=2, column=0, pady=2, sticky=tk.W)
+        tk.Checkbutton(output_frame, variable=self.show_middle_excerpt).grid(row=2, column=1, pady=2, sticky=tk.W)
+        help_output = tk.Label(output_frame, text="?", fg="blue", cursor="question_arrow")
+        help_output.grid(row=0, column=2, padx=5, sticky=tk.W)
+        Tooltip(help_output, "Highlight Style: How matches appear in RTF (e.g., Bold, Red).\nOutput File Type: Format of result files (e.g., .rtf, .txt).\nShow Middle Excerpt: Include middle file context in output if checked.")
 
         # Button Section
         btn_frame = ttk.Frame(main_frame)
@@ -152,15 +179,10 @@ class SearchApp:
         stats_frame.grid(row=5, column=0, padx=5, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
         stats_frame.columnconfigure(0, weight=1)
         stats_frame.rowconfigure(0, weight=1)
-
-        # Start with minimal height, will adjust dynamically
         self.stats_text = scrolledtext.ScrolledText(stats_frame, height=1)
         self.stats_text.grid(row=0, column=0, padx=5, pady=5, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-        # Bind toggle for proximity input
         self.search_mode.trace("w", self.toggle_proximity_input)
-
-        # Force the window to update its size after all widgets are added
         self.root.update_idletasks()
 
     def toggle_proximity_input(self, *args):
@@ -219,7 +241,8 @@ class SearchApp:
         start_time = time.time()
 
         terms = [t.strip() for t in self.search_terms.get().split(',')] if self.search_terms.get() else DEFAULT_TERMS
-        self.term_patterns = [re.compile(rf"(?:^|\s){term}(?=\s|$)", re.IGNORECASE) for term in terms]
+        flags = 0 if self.case_sensitive.get() else re.IGNORECASE  # Toggle case sensitivity
+        self.term_patterns = [re.compile(rf"(?:^|\s){re.escape(term)}(?=[,.\s]|$)", flags) for term in terms]
         total_matches_by_term = {term: 0 for term in terms} if self.search_mode.get() == "Individual Mode" else {'proximity': 0}
 
         search_dir = self.search_dir.get()
@@ -228,7 +251,6 @@ class SearchApp:
         is_rtf = output_file_type == ".rtf"
         mode = self.search_mode.get()
 
-        # Get configurable limits and store as instance variables
         try:
             self.excerpt_sentences_val = int(self.excerpt_sentences.get())
             self.middle_word_limit_val = int(self.middle_word_limit.get())
@@ -238,7 +260,6 @@ class SearchApp:
             self.middle_word_limit_val = MIDDLE_WORD_LIMIT
             self.proximity_window_val = PROXIMITY_WINDOW
 
-        # Update ignore patterns from GUI
         self.ignore_files_list = [f.strip() for f in self.ignore_files.get().split(',')] if self.ignore_files.get() else IGNORE_FILES
         self.ignore_folders_list = [f.strip() for f in self.ignore_folders.get().split(',')] if self.ignore_folders.get() else IGNORE_FOLDERS
 
@@ -249,7 +270,6 @@ class SearchApp:
 
         os.makedirs(output_dir, exist_ok=True)
 
-        # Setup output files based on mode
         overwrite_files = []
         if mode == "Individual Mode":
             for term in terms:
@@ -259,7 +279,7 @@ class SearchApp:
                 output_files[term] = open(output_file, "w", encoding="utf-8", newline="\n")
                 if is_rtf:
                     output_files[term].write(RTF_HEADER)
-        else:  # Proximity Mode
+        else:
             if len(terms) < 2:
                 self.stats_text.insert(tk.END, "Error: Proximity Mode requires at least 2 terms\n")
                 self.stop_search()
@@ -272,21 +292,25 @@ class SearchApp:
             if is_rtf:
                 output_files['proximity'].write(RTF_HEADER)
 
-        # Overwrite warning
         if overwrite_files:
             warning_msg = "Warning: You're about to overwrite the following existing output files:\n" + "\n".join(overwrite_files) + "\n\nContinue?"
             if not messagebox.askyesno("Overwrite Warning", warning_msg):
                 self.stop_search()
                 return
-        self.txt_files = [f for f in Path(search_dir).rglob("*.[tT][xX][tT]")
-                         if not (any(fnmatch.fnmatch(f.name, ignore) for ignore in self.ignore_files_list) or
-                                 any(fnmatch.fnmatch(str(f.parent.name), ignore) for ignore in self.ignore_folders_list))]
+
+        self.txt_files = []
+        for pattern in ["*.[tT][xX][tT]", "*.[mM][dD]", "*"]:
+            files = list(Path(search_dir).rglob(pattern))
+            self.txt_files.extend(f for f in files if f.is_file() and (f.suffix.lower() in ['.txt', '.md'] or not f.suffix))
+        self.txt_files = list(set(self.txt_files))
+        self.txt_files = [f for f in self.txt_files
+                          if not (any(fnmatch.fnmatch(f.name, ignore) for ignore in self.ignore_files_list) or
+                                  any(fnmatch.fnmatch(str(f.parent.name), ignore) for ignore in self.ignore_folders_list))]
         total_files = len(self.txt_files)
         self.update_stats(terms)
 
-        # Start the search loop
         self.root.after(10, self.search_loop)
-
+        
     def search_loop(self):
         global files_processed
         ignore_pattern = re.compile(IGNORE_STRING)
@@ -336,30 +360,53 @@ class SearchApp:
                                 keyword_excerpt = keyword_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
                                 style = self.highlight_style.get()
                                 highlighted_term = HIGHLIGHT_STYLES[style].format(term=matched_term)
-                                keyword_excerpt = keyword_excerpt.replace(matched_term, highlighted_term)
+                                excerpt_match = pattern.search(keyword_excerpt)
+                                if excerpt_match:
+                                    start_pos = excerpt_match.start()
+                                    end_pos = excerpt_match.end()
+                                    keyword_excerpt = (
+                                        keyword_excerpt[:start_pos] +
+                                        highlighted_term +
+                                        keyword_excerpt[end_pos:]
+                                    )
                             else:
                                 keyword_excerpt = keyword_excerpt
 
-                            mid_point = len(sentences_all) // 2
-                            mid_start = max(0, mid_point - (MIDDLE_SENTENCES // 2))
-                            mid_end = min(len(sentences_all), mid_start + MIDDLE_SENTENCES)
-                            middle_sentences = sentences_all[mid_start:mid_end]
-                            middle_excerpt = " ".join(middle_sentences)
-                            words = middle_excerpt.split()
-                            if len(words) > self.middle_word_limit_val:
-                                middle_excerpt = " ".join(words[:self.middle_word_limit_val]) + "..."
-                            if is_rtf:
-                                middle_excerpt = middle_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
+                            middle_excerpt = ""
+                            if self.show_middle_excerpt.get():
+                                mid_point = len(sentences_all) // 2
+                                mid_start = max(0, mid_point - (MIDDLE_SENTENCES // 2))
+                                mid_end = min(len(sentences_all), mid_start + MIDDLE_SENTENCES)
+                                middle_sentences = sentences_all[mid_start:mid_end]
+                                middle_excerpt = " ".join(middle_sentences)
+                                words = middle_excerpt.split()
+                                if len(words) > self.middle_word_limit_val:
+                                    middle_excerpt = " ".join(words[:self.middle_word_limit_val]) + "..."
+                                if is_rtf:
+                                    middle_excerpt = middle_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
 
                             out_f = output_files[term]
-                            out_f.write(f"File: {file}\n")
-                            out_f.write(f"Match at line {i} (keyword excerpt): {keyword_excerpt}\n")
-                            out_f.write("\n")
-                            out_f.write("\n")
-                            out_f.write(f"Middle of file excerpt: {middle_excerpt}\n")
-                            out_f.write("------------------------\n" if not is_rtf else "------------------------\\par\n")
                             if is_rtf:
+                                out_f.write(f"\\ul File: {file}\\ulnone\\par\n")
                                 out_f.write("\\par\n")
+                                out_f.write(f"\\cf1 (keyword excerpt):\\cf0\\par\n")
+                                out_f.write(f"{keyword_excerpt}\\par\n")
+                                if self.show_middle_excerpt.get():
+                                    out_f.write("\\par\n")
+                                    out_f.write(f"\\cf1 Middle of file excerpt:\\cf0\\par\n")
+                                    out_f.write(f"{middle_excerpt}\\par\n")
+                                out_f.write("------------------------\\par\n")
+                                out_f.write("\\par\n")
+                            else:
+                                out_f.write(f"File: {file}\n")
+                                out_f.write("\n")
+                                out_f.write(f"(keyword excerpt):\n")
+                                out_f.write(f"{keyword_excerpt}\n")
+                                if self.show_middle_excerpt.get():
+                                    out_f.write("\n")
+                                    out_f.write(f"Middle of file excerpt:\n")
+                                    out_f.write(f"{middle_excerpt}\n")
+                                out_f.write("------------------------\n")
                             out_f.flush()
             else:
                 proximity_matches = []
@@ -391,32 +438,49 @@ class SearchApp:
                             for match in reversed(matches):
                                 matched_term = match.group(0)
                                 highlighted_term = HIGHLIGHT_STYLES[style].format(term=matched_term)
-                                keyword_excerpt = (keyword_excerpt[:match.start()] + 
-                                                 highlighted_term + 
-                                                 keyword_excerpt[match.end():])
+                                keyword_excerpt = (
+                                    keyword_excerpt[:match.start()] +
+                                    highlighted_term +
+                                    keyword_excerpt[match.end():]
+                                )
                     else:
                         keyword_excerpt = keyword_excerpt
 
-                    mid_point = len(sentences_all) // 2
-                    mid_start = max(0, mid_point - (MIDDLE_SENTENCES // 2))
-                    mid_end = min(len(sentences_all), mid_start + MIDDLE_SENTENCES)
-                    middle_sentences = sentences_all[mid_start:mid_end]
-                    middle_excerpt = " ".join(middle_sentences)
-                    words = middle_excerpt.split()
-                    if len(words) > self.middle_word_limit_val:
-                        middle_excerpt = " ".join(words[:self.middle_word_limit_val]) + "..."
-                    if is_rtf:
-                        middle_excerpt = middle_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
+                    middle_excerpt = ""
+                    if self.show_middle_excerpt.get():
+                        mid_point = len(sentences_all) // 2
+                        mid_start = max(0, mid_point - (MIDDLE_SENTENCES // 2))
+                        mid_end = min(len(sentences_all), mid_start + MIDDLE_SENTENCES)
+                        middle_sentences = sentences_all[mid_start:mid_end]
+                        middle_excerpt = " ".join(middle_sentences)
+                        words = middle_excerpt.split()
+                        if len(words) > self.middle_word_limit_val:
+                            middle_excerpt = " ".join(words[:self.middle_word_limit_val]) + "..."
+                        if is_rtf:
+                            middle_excerpt = middle_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
 
                     out_f = output_files['proximity']
-                    out_f.write(f"File: {file}\n")
-                    out_f.write(f"Proximity match at sentence {match_idx + 1} (keyword excerpt): {keyword_excerpt}\n")
-                    out_f.write("\n")
-                    out_f.write("\n")
-                    out_f.write(f"Middle of file excerpt: {middle_excerpt}\n")
-                    out_f.write("------------------------\n" if not is_rtf else "------------------------\\par\n")
                     if is_rtf:
+                        out_f.write(f"\\ul File: {file}\\ulnone\\par\n")
                         out_f.write("\\par\n")
+                        out_f.write(f"\\cf1 (keyword excerpt):\\cf0\\par\n")
+                        out_f.write(f"{keyword_excerpt}\\par\n")
+                        if self.show_middle_excerpt.get():
+                            out_f.write("\\par\n")
+                            out_f.write(f"\\cf1 Middle of file excerpt:\\cf0\\par\n")
+                            out_f.write(f"{middle_excerpt}\\par\n")
+                        out_f.write("------------------------\\par\n")
+                        out_f.write("\\par\n")
+                    else:
+                        out_f.write(f"File: {file}\n")
+                        out_f.write("\n")
+                        out_f.write(f"(keyword excerpt):\n")
+                        out_f.write(f"{keyword_excerpt}\n")
+                        if self.show_middle_excerpt.get():
+                            out_f.write("\n")
+                            out_f.write(f"Middle of file excerpt:\n")
+                            out_f.write(f"{middle_excerpt}\n")
+                        out_f.write("------------------------\n")
                     out_f.flush()
 
             files_processed += 1
