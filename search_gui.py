@@ -241,7 +241,7 @@ class SearchApp:
         start_time = time.time()
 
         terms = [t.strip() for t in self.search_terms.get().split(',')] if self.search_terms.get() else DEFAULT_TERMS
-        flags = 0 if self.case_sensitive.get() else re.IGNORECASE  # Toggle case sensitivity
+        flags = 0 if self.case_sensitive.get() else re.IGNORECASE
         self.term_patterns = [re.compile(rf"(?:^|\s){re.escape(term)}(?=[,.\s]|$)", flags) for term in terms]
         total_matches_by_term = {term: 0 for term in terms} if self.search_mode.get() == "Individual Mode" else {'proximity': 0}
 
@@ -374,14 +374,17 @@ class SearchApp:
 
                             middle_excerpt = ""
                             if self.show_middle_excerpt.get():
-                                mid_point = len(sentences_all) // 2
-                                mid_start = max(0, mid_point - (MIDDLE_SENTENCES // 2))
-                                mid_end = min(len(sentences_all), mid_start + MIDDLE_SENTENCES)
-                                middle_sentences = sentences_all[mid_start:mid_end]
-                                middle_excerpt = " ".join(middle_sentences)
-                                words = middle_excerpt.split()
-                                if len(words) > self.middle_word_limit_val:
-                                    middle_excerpt = " ".join(words[:self.middle_word_limit_val]) + "..."
+                                all_words = raw_text.split()
+                                mid_point = len(all_words) // 2
+                                half_limit = self.middle_word_limit_val // 2
+                                mid_start = max(0, mid_point - half_limit)
+                                mid_end = min(len(all_words), mid_point + half_limit)
+                                middle_words = all_words[mid_start:mid_end]
+                                middle_excerpt = " ".join(middle_words)
+                                if mid_end < len(all_words):
+                                    middle_excerpt += "..."
+                                if mid_start > 0:
+                                    middle_excerpt = "..." + middle_excerpt
                                 if is_rtf:
                                     middle_excerpt = middle_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
 
@@ -448,14 +451,17 @@ class SearchApp:
 
                     middle_excerpt = ""
                     if self.show_middle_excerpt.get():
-                        mid_point = len(sentences_all) // 2
-                        mid_start = max(0, mid_point - (MIDDLE_SENTENCES // 2))
-                        mid_end = min(len(sentences_all), mid_start + MIDDLE_SENTENCES)
-                        middle_sentences = sentences_all[mid_start:mid_end]
-                        middle_excerpt = " ".join(middle_sentences)
-                        words = middle_excerpt.split()
-                        if len(words) > self.middle_word_limit_val:
-                            middle_excerpt = " ".join(words[:self.middle_word_limit_val]) + "..."
+                        all_words = raw_text.split()
+                        mid_point = len(all_words) // 2
+                        half_limit = self.middle_word_limit_val // 2
+                        mid_start = max(0, mid_point - half_limit)
+                        mid_end = min(len(all_words), mid_point + half_limit)
+                        middle_words = all_words[mid_start:mid_end]
+                        middle_excerpt = " ".join(middle_words)
+                        if mid_end < len(all_words):
+                            middle_excerpt += "..."
+                        if mid_start > 0:
+                            middle_excerpt = "..." + middle_excerpt
                         if is_rtf:
                             middle_excerpt = middle_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
 
