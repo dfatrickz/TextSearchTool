@@ -2,6 +2,29 @@
 
 A Python-based GUI application designed to search for specific terms within text files in a specified directory and generate detailed output files with excerpts of matches and context. This tool is ideal for users who need to quickly analyze text data, such as researchers, developers, or anyone working with large sets of text files.
 
+## Latest Updates (Mars 18 2025)
+
+Changes and Features
+-Issue 1: Word Detection
+-Adjusted regex to match standalone e.g. "asph" (not "asphalt") with boundaries.
+
+Issue 2: Extensionless Files
+-Expanded file search to .txt, .md, and extensionless files.
+
+Issue 3: Output Formatting
+-Underlined "File:" in RTF, red labels for excerpts, added spacing, fixed keyword spacing.
+
+Issue 4: Case Sensitivity
+-Added "Case Sensitive" checkbox in "Search Settings" to toggle re.IGNORECASE.
+
+Feature: Tooltips
+-Added Tooltip class and "?" buttons for "Search Inputs", "Search Settings", "Ignore Settings", "Output Settings".
+
+Feature: Middle Excerpt Toggle
+-Added "Show Middle Excerpt" checkbox in "Output Settings" to enable/disable middle excerpt.
+
+
+
 ## Speeds (SATA SSD, Single-Keyword, Default Settings)
 
 - Average file size: 35.14 KB
