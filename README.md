@@ -1,6 +1,6 @@
 # Text Search Tool
 
-A Python-based GUI application designed to search for specific terms within text files in a specified directory and generate detailed output files with excerpts of matches and context. This tool is ideal for users who need to quickly analyze text data, such as researchers, developers, or anyone working with large sets of text files.
+A Privacy focused Python-based GUI application designed to search for specific terms within text files in a specified directory and generate detailed output files with excerpts of matches and context. This tool is ideal for users who need to quickly analyze text data, such as researchers, developers, or anyone working with large sets of text files.
 
 ## Recent Updates - March 22, 2025
 - Added `.docx` output support with keyword highlighting (bold, red, blue).
@@ -8,14 +8,14 @@ A Python-based GUI application designed to search for specific terms within text
 - Fixed bugs and optimized for stability.
 
 
-## Speeds (SATA SSD, Single-Keyword, Default Settings)
+## Speed Test (SATA SSD, Single-Keyword, Default Settings)
 
-- Average file size: 35.14 KB
-- Average character count: 35593.92 characters
+- Average file size: 33.15 KB
+- Average character count: 33243.44 characters
 
 - Searching For: Happy
-- Files Processed: 66781/66781
-- Matches for Happy: 64006
+- Files Processed: 62123/62123
+- Matches for Happy: 62689
 - Speed (files/sec): 1259.18
 - Elapsed Time (sec): 53.04
 
@@ -92,22 +92,64 @@ Installation
 
 2. Run the Tool:
    python3 search_gui.py
+   
+## Running the Script on Windows
 
-Usage
+Follow these steps to run `search_gui.py` on Windows:
+
+1. **Install Python**:
+   - Download Python 3.x from [python.org](https://www.python.org/downloads/).
+   - Run the installer. **Check "Add Python to PATH"** during setup (bottom of the first screen).
+   - Verify installation: Open Command Prompt (`cmd`) and type `python --version`. You should see something like `Python 3.10.0`.
+
+2. **Install `python-docx` (Optional)**:
+   - If you want `.docx` output support, open Command Prompt and run:
+     ```
+     pip install python-docx
+     ```
+   - If `pip` isn’t recognized, use:
+     ```
+     python -m pip install python-docx
+     ```
+
+3. **Run the Script**:
+   - **Option 1: Double-Click**:
+     - Save `search_gui.py` to a folder.
+     - Double-click the file. If Python is installed correctly, the GUI should open.
+   - **Option 2: Command Prompt**:
+     - Open Command Prompt.
+     - Navigate to the script’s folder:
+       ```
+       cd path\to\the\ScriptFolder
+       ```
+     - Run:
+       ```
+       python search_gui.py
+       ```
+   - If you see an error like `'python' is not recognized`, ensure Python was added to PATH (reinstall with the checkbox enabled).
+
+4. **Troubleshooting**:
+   - If `.docx` output fails with an error about `python-docx`, install it (step 2).
+   - If the GUI doesn’t appear, ensure `tkinter` is installed by running `python -m tkinter` in Command Prompt—it should open a small test window. tkinter is included with the official Python installer, but you must select it during installation (it’s on by default in recent versions)
+
+
+
+
+## Usage
 
 1. Launch the tool with python3 search_gui.py.
 2. Enter search terms (e.g., apple, banana) in the "Search Terms" field.
 3. Select a search directory containing .txt files using the "Browse" button.
 4. Choose an output directory for results.
-5. (Optional) Select an output file type (default: .rtf) and, for .rtf, a highlight style.
+5. (Optional) Select an output file type (default: .rtf) and, for .rtf/.docx, a highlight style.
 6. Click "Start Search" to begin.
 7. Monitor progress in the text area; click "Stop" to halt if needed.
 8. Check the output directory for files named after each search term (e.g., apple.rtf).
 
 Notes
-- File Support: Currently searches only .txt files (case-insensitive, e.g., .TXT, .txt).
-- RTF Formatting: Highlighting and special formatting apply only to .rtf output; other formats use plain text.
-- Future Enhancements: Potential support for full .docx formatting or .csv structuring with additional libraries.
+- File Support: Currently searches for .txt files (case-insensitive, e.g., .TXT, .txt). and text files without ".txt"
+- RTF Formatting: Highlighting and special formatting apply only to .rtf and .docx output; other formats use plain text.
+- Future Enhancements: .csv structuring with additional libraries. (.csv has been removed for now)
 
 Contributions and feedback are welcome!
 

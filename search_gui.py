@@ -153,7 +153,7 @@ class SearchApp:
         # Output Settings Section
         output_frame = ttk.LabelFrame(main_frame, text="Output Settings (RTF Output Recommended)", padding="5")
         output_frame.grid(row=3, column=0, padx=5, pady=5, sticky=(tk.W, tk.E))
-        tk.Label(output_frame, text="Highlight Style (for RTF only):").grid(row=0, column=0, pady=2, sticky=tk.W)
+        tk.Label(output_frame, text="Highlight Style (for RTF/DOCX only):").grid(row=0, column=0, pady=2, sticky=tk.W)
         style_combo = ttk.Combobox(output_frame, textvariable=self.highlight_style, values=list(HIGHLIGHT_STYLES.keys()), state="readonly")
         style_combo.grid(row=0, column=1, pady=2, sticky=tk.W)
         style_combo.set("Bold")
@@ -165,7 +165,7 @@ class SearchApp:
         tk.Checkbutton(output_frame, variable=self.show_middle_excerpt).grid(row=2, column=1, pady=2, sticky=tk.W)
         help_output = tk.Label(output_frame, text="?", fg="blue", cursor="question_arrow")
         help_output.grid(row=0, column=2, padx=5, sticky=tk.W)
-        Tooltip(help_output, "Highlight Style: How matches appear in RTF (e.g., Bold, Red)—RTF recommended for speed.\nOutput File Type: .rtf (fast, formatted), .txt/.md (fast, plain), .docx (slower, formatted).\nShow Middle Excerpt: Include middle file context in output if checked.")
+        Tooltip(help_output, "Highlight Style: How matches appear in RTF/DOCX (e.g., Bold, Red)—RTF recommended for speed.\nOutput File Type: .rtf (fast, formatted), .txt/.md (fast, plain), .docx (slower, formatted).\nShow Middle Excerpt: Include middle file context in output if checked.")
 
         # Button Section
         btn_frame = ttk.Frame(main_frame)
