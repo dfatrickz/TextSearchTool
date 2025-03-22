@@ -10,7 +10,7 @@ from tkinter import filedialog, scrolledtext, ttk, messagebox
 DIR = "/path/to/your/search/directory"
 OUTPUT_DIR = "/path/to/your/output/directory"
 DEFAULT_TERMS = ["apple"]
-OUTPUT_FILE_TYPES = [".rtf", ".txt", ".md", ".docx", ".csv"]
+OUTPUT_FILE_TYPES = [".rtf", ".txt", ".md", ".docx"]
 DEFAULT_OUTPUT_FILE_TYPE = ".rtf"
 EXCERPT_SENTENCES = 5
 PROXIMITY_WINDOW = 5
@@ -20,6 +20,7 @@ IGNORE_FOLDERS = ["temp", "logs"]
 MIDDLE_SENTENCES = 10
 MIDDLE_WORD_LIMIT = 150
 UPDATE_INTERVAL = 50
+DOCX_BATCH_SIZE = 1000  # Save .docx every 1000 files
 RTF_HEADER = r"{\rtf1\ansi\ansicpg1252\deff0\nouicompat\deflang1033{\fonttbl{\f0\fswiss\fcharset0 Calibri;}}{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}\f0\fs22\par"
 RTF_FOOTER = r"}"
 
@@ -150,7 +151,7 @@ class SearchApp:
         Tooltip(help_ignore, "Ignore Files: File names/patterns to skip (e.g., *.log).\nIgnore Folders: Folder names to exclude (e.g., temp).")
 
         # Output Settings Section
-        output_frame = ttk.LabelFrame(main_frame, text="Output Settings", padding="5")
+        output_frame = ttk.LabelFrame(main_frame, text="Output Settings (RTF Output Recommended)", padding="5")
         output_frame.grid(row=3, column=0, padx=5, pady=5, sticky=(tk.W, tk.E))
         tk.Label(output_frame, text="Highlight Style (for RTF only):").grid(row=0, column=0, pady=2, sticky=tk.W)
         style_combo = ttk.Combobox(output_frame, textvariable=self.highlight_style, values=list(HIGHLIGHT_STYLES.keys()), state="readonly")
@@ -164,7 +165,7 @@ class SearchApp:
         tk.Checkbutton(output_frame, variable=self.show_middle_excerpt).grid(row=2, column=1, pady=2, sticky=tk.W)
         help_output = tk.Label(output_frame, text="?", fg="blue", cursor="question_arrow")
         help_output.grid(row=0, column=2, padx=5, sticky=tk.W)
-        Tooltip(help_output, "Highlight Style: How matches appear in RTF (e.g., Bold, Red).\nOutput File Type: Format of result files (e.g., .rtf, .txt).\nShow Middle Excerpt: Include middle file context in output if checked.")
+        Tooltip(help_output, "Highlight Style: How matches appear in RTF (e.g., Bold, Red)—RTF recommended for speed.\nOutput File Type: .rtf (fast, formatted), .txt/.md (fast, plain), .docx (slower, formatted).\nShow Middle Excerpt: Include middle file context in output if checked.")
 
         # Button Section
         btn_frame = ttk.Frame(main_frame)
@@ -248,7 +249,11 @@ class SearchApp:
         search_dir = self.search_dir.get()
         output_dir = self.output_dir.get()
         output_file_type = self.output_file_type.get()
-        is_rtf = output_file_type == ".rtf"
+        if output_file_type != ".rtf" and not hasattr(self, 'warned_non_rtf'):
+            self.stats_text.insert(tk.END, "Note: Only .rtf and .docx support highlighting; .docx is slower.\n")
+            self.warned_non_rtf = True
+        self.is_rtf = output_file_type == ".rtf"
+        self.is_docx = output_file_type == ".docx"
         mode = self.search_mode.get()
 
         try:
@@ -276,9 +281,17 @@ class SearchApp:
                 output_file = os.path.join(output_dir, f"{term}{output_file_type}")
                 if os.path.exists(output_file):
                     overwrite_files.append(f"{term}{output_file_type}")
-                output_files[term] = open(output_file, "w", encoding="utf-8", newline="\n")
-                if is_rtf:
-                    output_files[term].write(RTF_HEADER)
+                if self.is_docx:
+                    from docx import Document
+                    from docx.oxml.ns import qn
+                    from docx.oxml import OxmlElement
+                    from docx.text.run import Run
+                    from docx.shared import RGBColor  # Correct import from your old script
+                    output_files[term] = Document()
+                else:
+                    output_files[term] = open(output_file, "w", encoding="utf-8", newline="\n")
+                    if self.is_rtf:
+                        output_files[term].write(RTF_HEADER)
         else:
             if len(terms) < 2:
                 self.stats_text.insert(tk.END, "Error: Proximity Mode requires at least 2 terms\n")
@@ -288,9 +301,17 @@ class SearchApp:
             output_file = os.path.join(output_dir, output_file_name)
             if os.path.exists(output_file):
                 overwrite_files.append(output_file_name)
-            output_files['proximity'] = open(output_file, "w", encoding="utf-8", newline="\n")
-            if is_rtf:
-                output_files['proximity'].write(RTF_HEADER)
+            if self.is_docx:
+                from docx import Document
+                from docx.oxml.ns import qn
+                from docx.oxml import OxmlElement
+                from docx.text.run import Run
+                from docx.shared import RGBColor  # Correct import from your old script
+                output_files['proximity'] = Document()
+            else:
+                output_files['proximity'] = open(output_file, "w", encoding="utf-8", newline="\n")
+                if self.is_rtf:
+                    output_files['proximity'].write(RTF_HEADER)
 
         if overwrite_files:
             warning_msg = "Warning: You're about to overwrite the following existing output files:\n" + "\n".join(overwrite_files) + "\n\nContinue?"
@@ -307,29 +328,35 @@ class SearchApp:
                           if not (any(fnmatch.fnmatch(f.name, ignore) for ignore in self.ignore_files_list) or
                                   any(fnmatch.fnmatch(str(f.parent.name), ignore) for ignore in self.ignore_folders_list))]
         total_files = len(self.txt_files)
+        self.docx_file_count = 0  # Add this line here
         self.update_stats(terms)
-
         self.root.after(10, self.search_loop)
         
     def search_loop(self):
         global files_processed
         ignore_pattern = re.compile(IGNORE_STRING)
         mode = self.search_mode.get()
-        is_rtf = self.output_file_type.get() == ".rtf"
         terms = [t.strip() for t in self.search_terms.get().split(',')] if self.search_terms.get() else DEFAULT_TERMS
 
         for file in self.txt_files:
             if not running:
                 break
             file_start = time.time()
-            with open(file, "r", encoding="utf-8", errors="ignore") as f:
-                raw_text = f.read().replace(r'\c', r'\\c')
-                lines = raw_text.splitlines()
-                sentences_all = re.split(r'\.\s*', raw_text)
-                sentences_all = [s.strip() + "." for s in sentences_all if s.strip()]
+            try:
+                with open(file, "r", encoding="utf-8", errors="ignore") as f:
+                    raw_text = f.read().replace(r'\c', r'\\c')
+                    lines = raw_text.splitlines()
+                    sentences_all = re.split(r'\.\s*', raw_text)
+                    sentences_all = [s.strip() + "." for s in sentences_all if s.strip()]
+            except Exception as e:
+                self.stats_text.insert(tk.END, f"Error reading {file}: {e}\n")
+                files_processed += 1
+                continue
 
             if mode == "Individual Mode":
                 for i, line in enumerate(lines, 1):
+                    if not running:
+                        break
                     if ignore_pattern.search(line):
                         continue
                     for term_idx, pattern in enumerate(self.term_patterns):
@@ -344,6 +371,8 @@ class SearchApp:
                             sentences = re.split(r'\.\s*', excerpt_full)
                             keyword_sentence_idx = -1
                             for idx, sentence in enumerate(sentences):
+                                if not running:
+                                    break
                                 if pattern.search(sentence):
                                     keyword_sentence_idx = idx
                                     break
@@ -356,7 +385,7 @@ class SearchApp:
                                 if not pattern.search(keyword_excerpt):
                                     keyword_excerpt = line.strip() + "."
                             matched_term = match.group(0)
-                            if is_rtf:
+                            if self.is_rtf:
                                 keyword_excerpt = keyword_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
                                 style = self.highlight_style.get()
                                 highlighted_term = HIGHLIGHT_STYLES[style].format(term=matched_term)
@@ -369,8 +398,6 @@ class SearchApp:
                                         highlighted_term +
                                         keyword_excerpt[end_pos:]
                                     )
-                            else:
-                                keyword_excerpt = keyword_excerpt
 
                             middle_excerpt = ""
                             if self.show_middle_excerpt.get():
@@ -385,11 +412,51 @@ class SearchApp:
                                     middle_excerpt += "..."
                                 if mid_start > 0:
                                     middle_excerpt = "..." + middle_excerpt
-                                if is_rtf:
+                                if self.is_rtf:
                                     middle_excerpt = middle_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
 
                             out_f = output_files[term]
-                            if is_rtf:
+                            if self.is_docx:
+                                from docx.shared import RGBColor
+                                keyword_excerpt = ''.join(c for c in keyword_excerpt if ord(c) >= 32 or c in '\t\n\r')
+                                middle_excerpt = ''.join(c for c in middle_excerpt if ord(c) >= 32 or c in '\t\n\r')
+                                p = out_f.add_paragraph()
+                                p.add_run(f"File: {file}", style=None).underline = True
+                                p = out_f.add_paragraph()
+                                p.add_run("(keyword excerpt):").font.color.rgb = RGBColor(255, 0, 0)
+                                p = out_f.add_paragraph()
+                                match = pattern.search(keyword_excerpt)
+                                if match:
+                                    start, end = match.start(), match.end()
+                                    pre_text = keyword_excerpt[:start]
+                                    matched_term = keyword_excerpt[start:end]
+                                    post_text = keyword_excerpt[end:]
+                                    if pre_text:
+                                        p.add_run(pre_text)
+                                    run = p.add_run(matched_term)
+                                    style = self.highlight_style.get()
+                                    if "Bold" in style:
+                                        run.bold = True
+                                    if "Red" in style:
+                                        run.font.color.rgb = RGBColor(255, 0, 0)
+                                    elif "Blue" in style:
+                                        run.font.color.rgb = RGBColor(0, 0, 255)
+                                    if post_text:
+                                        p.add_run(post_text)
+                                else:
+                                    p.add_run(keyword_excerpt)
+                                if self.show_middle_excerpt.get():
+                                    p = out_f.add_paragraph()
+                                    p.add_run("Middle of file excerpt:").font.color.rgb = RGBColor(255, 0, 0)
+                                    out_f.add_paragraph(middle_excerpt)
+                                out_f.add_paragraph("------------------------")
+                                # Batch save on matches
+                                if total_matches_by_term[term] % DOCX_BATCH_SIZE == 0:
+                                    from docx import Document
+                                    temp_file = os.path.join(self.output_dir.get(), f"temp_{term}_{total_matches_by_term[term] // DOCX_BATCH_SIZE}.docx")
+                                    out_f.save(temp_file)
+                                    output_files[term] = Document()
+                            elif self.is_rtf:
                                 out_f.write(f"\\ul File: {file}\\ulnone\\par\n")
                                 out_f.write("\\par\n")
                                 out_f.write(f"\\cf1 (keyword excerpt):\\cf0\\par\n")
@@ -410,10 +477,13 @@ class SearchApp:
                                     out_f.write(f"Middle of file excerpt:\n")
                                     out_f.write(f"{middle_excerpt}\n")
                                 out_f.write("------------------------\n")
-                            out_f.flush()
+                            if not self.is_docx:
+                                out_f.flush()
             else:
                 proximity_matches = []
                 for i, sentence in enumerate(sentences_all):
+                    if not running:
+                        break
                     if ignore_pattern.search(sentence):
                         continue
                     if self.term_patterns[0].search(sentence):
@@ -424,6 +494,8 @@ class SearchApp:
                             proximity_matches.append(i)
 
                 for match_idx in proximity_matches:
+                    if not running:
+                        break
                     total_matches_by_term['proximity'] += 1
                     start = max(0, match_idx - (self.excerpt_sentences_val // 2))
                     end = min(len(sentences_all), start + self.excerpt_sentences_val)
@@ -433,12 +505,14 @@ class SearchApp:
                     if not all(pattern.search(keyword_excerpt) for pattern in self.term_patterns):
                         continue
 
-                    if is_rtf:
+                    if self.is_rtf:
                         keyword_excerpt = keyword_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
                         style = self.highlight_style.get()
                         for pattern_idx, pattern in enumerate(self.term_patterns):
                             matches = list(pattern.finditer(keyword_excerpt))
                             for match in reversed(matches):
+                                if not running:
+                                    break
                                 matched_term = match.group(0)
                                 highlighted_term = HIGHLIGHT_STYLES[style].format(term=matched_term)
                                 keyword_excerpt = (
@@ -446,8 +520,6 @@ class SearchApp:
                                     highlighted_term +
                                     keyword_excerpt[match.end():]
                                 )
-                    else:
-                        keyword_excerpt = keyword_excerpt
 
                     middle_excerpt = ""
                     if self.show_middle_excerpt.get():
@@ -462,11 +534,54 @@ class SearchApp:
                             middle_excerpt += "..."
                         if mid_start > 0:
                             middle_excerpt = "..." + middle_excerpt
-                        if is_rtf:
+                        if self.is_rtf:
                             middle_excerpt = middle_excerpt.replace('\\', '\\\\').replace('{', '\\{').replace('}', '\\}')
 
                     out_f = output_files['proximity']
-                    if is_rtf:
+                    if self.is_docx:
+                        from docx.shared import RGBColor
+                        keyword_excerpt = ''.join(c for c in keyword_excerpt if ord(c) >= 32 or c in '\t\n\r')
+                        middle_excerpt = ''.join(c for c in middle_excerpt if ord(c) >= 32 or c in '\t\n\r')
+                        p = out_f.add_paragraph()
+                        p.add_run(f"File: {file}", style=None).underline = True
+                        p = out_f.add_paragraph()
+                        p.add_run("(keyword excerpt):").font.color.rgb = RGBColor(255, 0, 0)
+                        p = out_f.add_paragraph()
+                        current_text = keyword_excerpt
+                        style = self.highlight_style.get()
+                        for pattern in self.term_patterns:
+                            match = pattern.search(current_text)
+                            if match:
+                                start, end = match.start(), match.end()
+                                pre_text = current_text[:start]
+                                matched_term = current_text[start:end]
+                                post_text = current_text[end:]
+                                if pre_text:
+                                    p.add_run(pre_text)
+                                run = p.add_run(matched_term)
+                                if "Bold" in style:
+                                    run.bold = True
+                                if "Red" in style:
+                                    run.font.color.rgb = RGBColor(255, 0, 0)
+                                elif "Blue" in style:
+                                    run.font.color.rgb = RGBColor(0, 0, 255)
+                                current_text = post_text
+                            else:
+                                break
+                        if current_text:
+                            p.add_run(current_text)
+                        if self.show_middle_excerpt.get():
+                            p = out_f.add_paragraph()
+                            p.add_run("Middle of file excerpt:").font.color.rgb = RGBColor(255, 0, 0)
+                            out_f.add_paragraph(middle_excerpt)
+                        out_f.add_paragraph("------------------------")
+                        # Batch save on matches
+                        if total_matches_by_term['proximity'] % DOCX_BATCH_SIZE == 0:
+                            from docx import Document
+                            temp_file = os.path.join(self.output_dir.get(), f"temp_proximity_{total_matches_by_term['proximity'] // DOCX_BATCH_SIZE}.docx")
+                            out_f.save(temp_file)
+                            output_files['proximity'] = Document()
+                    elif self.is_rtf:
                         out_f.write(f"\\ul File: {file}\\ulnone\\par\n")
                         out_f.write("\\par\n")
                         out_f.write(f"\\cf1 (keyword excerpt):\\cf0\\par\n")
@@ -487,7 +602,8 @@ class SearchApp:
                             out_f.write(f"Middle of file excerpt:\n")
                             out_f.write(f"{middle_excerpt}\n")
                         out_f.write("------------------------\n")
-                    out_f.flush()
+                    if not self.is_docx:
+                        out_f.flush()
 
             files_processed += 1
             if files_processed % UPDATE_INTERVAL == 0:
@@ -510,11 +626,36 @@ class SearchApp:
 
     def finalize_search(self, terms):
         global output_files, running
-        for key, f in output_files.items():
-            if f and not f.closed:
-                if self.output_file_type.get() == ".rtf":
-                    f.write(RTF_FOOTER)
-                f.close()
+        if self.is_docx:
+            from docx import Document
+            for key, f in output_files.items():
+                if f:
+                    # Save the last batch
+                    total_matches = total_matches_by_term.get(key, 0)
+                    batch_count = (total_matches // DOCX_BATCH_SIZE) + (1 if total_matches % DOCX_BATCH_SIZE else 0)
+                    temp_file = os.path.join(self.output_dir.get(), f"temp_{key}_{batch_count}.docx")
+                    f.save(temp_file)
+                    # Merge all batches
+                    final_file = os.path.join(self.output_dir.get(), f"{key}.docx" if key != 'proximity' else "_".join(terms).lower() + ".docx")
+                    merged_doc = Document()
+                    for i in range(1, batch_count + 1):
+                        batch_file = os.path.join(self.output_dir.get(), f"temp_{key}_{i}.docx")
+                        if os.path.exists(batch_file):
+                            temp_doc = Document(batch_file)
+                            for element in temp_doc.element.body:
+                                merged_doc.element.body.append(element)
+                            os.remove(batch_file)  # Clean up
+                    merged_doc.save(final_file)
+        else:
+            for key, f in output_files.items():
+                if f:
+                    if self.is_rtf:
+                        if not f.closed:
+                            f.write(RTF_FOOTER)
+                            f.close()
+                    else:
+                        if not f.closed:
+                            f.close()
         self.update_stats(terms)
         if running:
             self.stats_text.insert(tk.END, "\nSearch Completed Successfully\n")
@@ -523,8 +664,28 @@ class SearchApp:
             self.stats_text.insert(tk.END, "\nSearch Stopped by User\n")
         self.start_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.DISABLED)
-
+        
 if __name__ == "__main__":
     root = tk.Tk()
     app = SearchApp(root)
-    root.mainloop()
+    try:
+        root.mainloop()
+    except KeyboardInterrupt:
+        app.stop_search()
+        app.stats_text.insert(tk.END, "Search interrupted by user\n")
+        for key, f in output_files.items():
+            if f:
+                if app.is_rtf:
+                    if not f.closed:
+                        f.write(RTF_FOOTER)
+                        f.close()
+                elif app.is_docx:
+                    f.save(os.path.join(app.output_dir.get(), f"{key}.docx" if key != 'proximity' else "_".join(app.search_terms.get().split(',')).lower() + ".docx"))
+                else:
+                    if not f.closed:
+                        f.close()
+        root.quit()
+    except ImportError as e:
+        if "docx" in str(e):
+            app.stats_text.insert(tk.END, "Error: .docx support requires 'pip install python-docx'\n")
+        raise

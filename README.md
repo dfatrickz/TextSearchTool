@@ -2,27 +2,10 @@
 
 A Python-based GUI application designed to search for specific terms within text files in a specified directory and generate detailed output files with excerpts of matches and context. This tool is ideal for users who need to quickly analyze text data, such as researchers, developers, or anyone working with large sets of text files.
 
-## Latest Updates (Mars 18 2025)
-
-Changes and Features
--Issue 1: Word Detection
--Adjusted regex to match standalone e.g. "asph" (not "asphalt") with boundaries.
-
-Issue 2: Extensionless Files
--Expanded file search to .txt, .md, and extensionless files.
-
-Issue 3: Output Formatting
--Underlined "File:" in RTF, red labels for excerpts, added spacing, fixed keyword spacing.
-
-Issue 4: Case Sensitivity
--Added "Case Sensitive" checkbox in "Search Settings" to toggle re.IGNORECASE.
-
-Feature: Tooltips
--Added Tooltip class and "?" buttons for "Search Inputs", "Search Settings", "Ignore Settings", "Output Settings".
-
-Feature: Middle Excerpt Toggle
--Added "Show Middle Excerpt" checkbox in "Output Settings" to enable/disable middle excerpt.
-
+## Recent Updates - March 22, 2025
+- Added `.docx` output support with keyword highlighting (bold, red, blue).
+- Improved `.docx` performance: batches save every 1000 matches, merging into one file per keyword at the end.
+- Fixed bugs and optimized for stability.
 
 
 ## Speeds (SATA SSD, Single-Keyword, Default Settings)
@@ -70,6 +53,9 @@ Features
 - Enhanced GUI Layout: Organized into sections using frames and grid layout for a cleaner, more user-friendly interface.
 
 ## Requirements
+- Python 3.x
+- `tkinter` (included with Python)
+- `python-docx` (install via `pip install python-docx` for .docx support)
 
 To run the Text Search Tool, ensure you have the following:
 
