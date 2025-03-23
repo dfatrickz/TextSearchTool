@@ -153,7 +153,7 @@ class SearchApp:
         # Output Settings Section
         output_frame = ttk.LabelFrame(main_frame, text="Output Settings (RTF Output Recommended)", padding="5")
         output_frame.grid(row=3, column=0, padx=5, pady=5, sticky=(tk.W, tk.E))
-        tk.Label(output_frame, text="Highlight Style (for RTF/DOCX only):").grid(row=0, column=0, pady=2, sticky=tk.W)
+        tk.Label(output_frame, text="Highlight Style (for RTF only):").grid(row=0, column=0, pady=2, sticky=tk.W)
         style_combo = ttk.Combobox(output_frame, textvariable=self.highlight_style, values=list(HIGHLIGHT_STYLES.keys()), state="readonly")
         style_combo.grid(row=0, column=1, pady=2, sticky=tk.W)
         style_combo.set("Bold")
@@ -165,7 +165,7 @@ class SearchApp:
         tk.Checkbutton(output_frame, variable=self.show_middle_excerpt).grid(row=2, column=1, pady=2, sticky=tk.W)
         help_output = tk.Label(output_frame, text="?", fg="blue", cursor="question_arrow")
         help_output.grid(row=0, column=2, padx=5, sticky=tk.W)
-        Tooltip(help_output, "Highlight Style: How matches appear in RTF/DOCX (e.g., Bold, Red)—RTF recommended for speed.\nOutput File Type: .rtf (fast, formatted), .txt/.md (fast, plain), .docx (slower, formatted).\nShow Middle Excerpt: Include middle file context in output if checked.")
+        Tooltip(help_output, "Highlight Style: How matches appear in RTF (e.g., Bold, Red)—RTF recommended for speed.\nOutput File Type: .rtf (fast, formatted), .txt/.md (fast, plain), .docx (slower, formatted).\nShow Middle Excerpt: Include middle file context in output if checked.")
 
         # Button Section
         btn_frame = ttk.Frame(main_frame)
@@ -275,7 +275,8 @@ class SearchApp:
 
         os.makedirs(output_dir, exist_ok=True)
 
-        overwrite_files = []
+        overwrite_files = []  # Initialize here
+        output_files.clear()  # Reset to avoid bleed-over
         if mode == "Individual Mode":
             for term in terms:
                 output_file = os.path.join(output_dir, f"{term}{output_file_type}")
@@ -286,13 +287,13 @@ class SearchApp:
                     from docx.oxml.ns import qn
                     from docx.oxml import OxmlElement
                     from docx.text.run import Run
-                    from docx.shared import RGBColor  # Correct import from your old script
+                    from docx.shared import RGBColor
                     output_files[term] = Document()
                 else:
                     output_files[term] = open(output_file, "w", encoding="utf-8", newline="\n")
                     if self.is_rtf:
                         output_files[term].write(RTF_HEADER)
-        else:
+        elif mode == "Proximity Mode":
             if len(terms) < 2:
                 self.stats_text.insert(tk.END, "Error: Proximity Mode requires at least 2 terms\n")
                 self.stop_search()
@@ -306,7 +307,7 @@ class SearchApp:
                 from docx.oxml.ns import qn
                 from docx.oxml import OxmlElement
                 from docx.text.run import Run
-                from docx.shared import RGBColor  # Correct import from your old script
+                from docx.shared import RGBColor
                 output_files['proximity'] = Document()
             else:
                 output_files['proximity'] = open(output_file, "w", encoding="utf-8", newline="\n")
@@ -328,7 +329,7 @@ class SearchApp:
                           if not (any(fnmatch.fnmatch(f.name, ignore) for ignore in self.ignore_files_list) or
                                   any(fnmatch.fnmatch(str(f.parent.name), ignore) for ignore in self.ignore_folders_list))]
         total_files = len(self.txt_files)
-        self.docx_file_count = 0  # Add this line here
+        self.docx_file_count = 0
         self.update_stats(terms)
         self.root.after(10, self.search_loop)
         
@@ -626,16 +627,17 @@ class SearchApp:
 
     def finalize_search(self, terms):
         global output_files, running
+        mode = self.search_mode.get()
         if self.is_docx:
             from docx import Document
-            for key, f in output_files.items():
+            # Save and merge all in-memory batches
+            for key, f in list(output_files.items()):
                 if f:
-                    # Save the last batch
                     total_matches = total_matches_by_term.get(key, 0)
                     batch_count = (total_matches // DOCX_BATCH_SIZE) + (1 if total_matches % DOCX_BATCH_SIZE else 0)
                     temp_file = os.path.join(self.output_dir.get(), f"temp_{key}_{batch_count}.docx")
                     f.save(temp_file)
-                    # Merge all batches
+                    # Merge all temp files for this key
                     final_file = os.path.join(self.output_dir.get(), f"{key}.docx" if key != 'proximity' else "_".join(terms).lower() + ".docx")
                     merged_doc = Document()
                     for i in range(1, batch_count + 1):
@@ -644,18 +646,22 @@ class SearchApp:
                             temp_doc = Document(batch_file)
                             for element in temp_doc.element.body:
                                 merged_doc.element.body.append(element)
-                            os.remove(batch_file)  # Clean up
                     merged_doc.save(final_file)
+            # Clean up all temp files
+            keys_to_clean = terms if mode == "Individual Mode" else ['proximity']
+            for key in keys_to_clean:
+                total_matches = total_matches_by_term.get(key, 0)
+                batch_count = (total_matches // DOCX_BATCH_SIZE) + (1 if total_matches % DOCX_BATCH_SIZE else 0)
+                for i in range(1, batch_count + 1):
+                    temp_file = os.path.join(self.output_dir.get(), f"temp_{key}_{i}.docx")
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
         else:
             for key, f in output_files.items():
-                if f:
+                if f and not f.closed:
                     if self.is_rtf:
-                        if not f.closed:
-                            f.write(RTF_FOOTER)
-                            f.close()
-                    else:
-                        if not f.closed:
-                            f.close()
+                        f.write(RTF_FOOTER)
+                    f.close()
         self.update_stats(terms)
         if running:
             self.stats_text.insert(tk.END, "\nSearch Completed Successfully\n")
