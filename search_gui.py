@@ -5,6 +5,17 @@ from pathlib import Path
 import fnmatch
 import tkinter as tk
 from tkinter import filedialog, scrolledtext, ttk, messagebox
+import socket
+
+# Disable network access and print privacy message
+def block_internet():
+    print("This tool is privacy-first and has disabled internet access.")  # Prints to terminal
+    original_socket = socket.socket
+    def disabled_socket(*args, **kwargs):
+        raise RuntimeError("This tool is privacy-first and has disabled internet access.")
+    socket.socket = disabled_socket
+
+block_internet()  # Runs at startup
 
 # Configuration settings
 DIR = "/path/to/your/search/directory"
