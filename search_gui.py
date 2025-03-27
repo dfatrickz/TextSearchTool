@@ -357,6 +357,8 @@ class SearchApp:
             try:
                 with open(file, "r", encoding="utf-8", errors="ignore") as f:
                     raw_text = f.read().replace(r'\c', r'\\c')
+                    # Normalize all whitespace in source text to single spaces
+                    raw_text = " ".join(raw_text.split())
                     lines = raw_text.splitlines()
                     sentences_all = re.split(r'\.\s*', raw_text)
                     sentences_all = [s.strip() + "." for s in sentences_all if s.strip()]
